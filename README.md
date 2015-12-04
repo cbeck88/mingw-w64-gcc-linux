@@ -13,7 +13,7 @@ Configuration Summary
 - Targetting win32
 - gcc 4.9.3
 - Posix threads
-- Dwarf 2 exceptions
+- sjlj exceptions
 - No multilib
 
 See script for more details.
