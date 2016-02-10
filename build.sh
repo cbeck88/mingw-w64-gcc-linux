@@ -2,6 +2,16 @@
 
 # c.f. http://dlbeer.co.nz/articles/mingw64.html
 # c.f. http://pete.akeo.ie/2010/07/compiling-mingw-w64-with-multilib-on.html
+# Note: ubuntu trusty mingw configure string is as follows:
+# $ sudo apt-get install g++-mingw-w64-i686
+# $ i686-w64-mingw32-g++ -v
+# Using built-in specs.
+# COLLECT_GCC=i686-w64-mingw32-g++
+# COLLECT_LTO_WRAPPER=/usr/lib/gcc/i686-w64-mingw32/4.8/lto-wrapper
+# Target: i686-w64-mingw32
+# Configured with: ../../src/configure --build=x86_64-linux-gnu --prefix=/usr --includedir='/usr/include' --mandir='/usr/share/man' --infodir='/usr/share/info' --sysconfdir=/etc --localstatedir=/var --libexecdir='/usr/lib/gcc-mingw-w64' --disable-maintainer-mode --disable-dependency-tracking --prefix=/usr --enable-shared --enable-static --disable-multilib --with-system-zlib --libexecdir=/usr/lib --without-included-gettext --libdir=/usr/lib --enable-libstdcxx-time=yes --with-tune=generic --enable-version-specific-runtime-libs --enable-threads=posix --enable-fully-dynamic-string --enable-sjlj-exceptions --enable-libgomp --enable-languages=c,c++,fortran,objc,obj-c++ --enable-lto --with-plugin-ld --target=i686-w64-mingw32 --with-gxx-include-dir=/usr/include/c++/4.8 --with-as=/usr/bin/i686-w64-mingw32-as --with-ld=/usr/bin/i686-w64-mingw32-ld
+# Thread model: posix
+# gcc version 4.8.2 (GCC) 
 
 set -e
 set -u
@@ -62,16 +72,22 @@ mv $MPF $GCC/mpfr
 mv $MPC $GCC/mpc
 
 # 1: Make binutils
+BINUTILS_CONFIG="-target=${targ} --disable-multilib --with-sysroot=${MY_SYS_ROOT} --prefix=${MY_SYS_ROOT}"
+
 echo "<<< MAKE BINUTILS >>>"
 cd build_binutils
-../$BIN/configure --disable-multilib --disable-nls \
-  --with-sysroot=${MY_SYS_ROOT} --prefix=${MY_SYS_ROOT} \
-  --target=${targ} --enable-targets=${targ}
+../$BIN/configure $BINUTILS_CONFIG
 make -j3
 make install
 cd ..
 
-# 2: Make mingw headers
+# 2: Make symlinks
+echo "<<< MAKE SYMLINKS >>>"
+ln -s ${MY_SYS_ROOT}/${targ} ${MY_SYS_ROOT}/mingw
+mkdir -p ${MY_SYS_ROOT}/${targ}/lib
+#ln -s ${MY_SYS_ROOT}/${targ}/lib32
+
+# 3: Make mingw headers
 echo "<<< MAKE MINGW HEADERS >>>"
 cd build_mingw
 ../$MINGW/mingw-w64-headers/configure --host=${targ} --prefix=${MY_SYS_ROOT}/${targ}
@@ -79,20 +95,15 @@ make -j3
 make install
 cd ..
 
-# 3: Make symlinks
-echo "<<< MAKE SYMLINKS >>>"
-ln -s ${MY_SYS_ROOT}/${targ} ${MY_SYS_ROOT}/mingw
-mkdir -p ${MY_SYS_ROOT}/${targ}/lib
-
 # 4: Make gcc core
 echo "<<< MAKE GCC CORE >>>"
 cd build_gcc
-../$GCC/configure --target=${targ} --enable-targets=${targ} \
-  --prefix=${MY_SYS_ROOT} --with-sysroot=${MY_SYS_ROOT} --includedir=${MY_SYS_ROOT}/include --libdir=${MY_SYS_ROOT}/lib --libexecdir=${MY_SYS_ROOT}/lib \
-  --disable-maintainer-mode --disable-dependency-tracking --enable-static --enable-shared --disable-multilib --with-system-zlib \
-  --with-dwarf --enable-threads=posix --without-included-gettext --disable-nls  --enable-libstdcxx-time=yes --enable-fully-dynamic-string \
-  --enable-languages=c,c++ --enable-lto  --with-tune=generic \
-  --with-gxx-include-dir=${MY_SYS_ROOT}/include/c++/4.9 --with-as=${MY_SYS_ROOT}/bin/${targ}-as --with-ld=${MY_SYS_ROOT}/bin/${targ}-ld
+../$GCC/configure $BINUTILS_CONFIG \
+  --enable-static --enable-shared --with-system-zlib --without-included-gettext \
+  --enable-sjlj-exceptions --enable-threads=posix --enable-libstdcxx-time=yes --enable-fully-dynamic-string \
+  --enable-languages=c,c++ \
+  --includedir=${MY_SYS_ROOT}/include --libdir=${MY_SYS_ROOT}/lib --with-gxx-include-dir=${MY_SYS_ROOT}/include/c++/4.9 \
+  --with-as=${MY_SYS_ROOT}/bin/${targ}-as --with-ld=${MY_SYS_ROOT}/bin/${targ}-ld
 make all-gcc -j3
 make install-gcc
 cd ..
@@ -101,7 +112,7 @@ cd ..
 
 echo "<<< MAKE MINGW CRT >>>"
 cd build_mingw
-../$MINGW/configure --disable-multilib --disable-nls --enable-lib32 --target=${targ} \
+../$MINGW/configure --disable-multilib --target=${targ} \
   --with-sysroot=${MY_SYS_ROOT} --prefix=${MY_SYS_ROOT}/${targ} --host=${targ} 
 make -j3
 make install
@@ -113,9 +124,9 @@ echo "<<< MAKE WINPTHREADS >>>"
 
 cd build_winpthread
 ../$MINGW/mingw-w64-libraries/winpthreads/configure \
-    --prefix=${MY_SYS_ROOT}/${targ} \
-    --host=${targ}
-#    --libdir=${MY_SYS_ROOT}/${targ}/lib \
+    --prefix=${MY_SYS_ROOT}/${targ} --host=${targ} \
+    --libdir=${MY_SYS_ROOT}/${targ}/lib \
+    --disable-multilib
 #    CC="${MY_SYS_ROOT}/bin/${targ}-gcc" \
 #    CCAS="${MY_SYS_ROOT}/bin/${targ}-gcc" \
 #    DLLTOOL="${MY_SYS_ROOT}/bin/${targ}-dlltool -m i386" \
